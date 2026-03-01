@@ -5,6 +5,9 @@ on:
     - cron: '0 10 * * *'   # 7 AM Argentina
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   run-script:
     runs-on: ubuntu-latest
