@@ -2,7 +2,7 @@ name: Scraper diario
 
 on:
   schedule:
-    - cron: '0 10 * * *'   # corre todos los días 10:00 UTC (7 AM Argentina)
+    - cron: '0 10 * * *'   # 7 AM Argentina
   workflow_dispatch:
 
 jobs:
@@ -23,3 +23,11 @@ jobs:
 
       - name: Ejecutar scraper
         run: python scraper.py
+
+      - name: Subir resultados
+        run: |
+          git config --global user.name "bot-precios"
+          git config --global user.email "bot@github.com"
+          git add .
+          git commit -m "actualizacion diaria precios" || echo "sin cambios"
+          git push
