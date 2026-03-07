@@ -1,97 +1,75 @@
 import pandas as pd
 import requests
-import urllib.parse
+from bs4 import BeautifulSoup
+from datetime import datetime
+
+headers = {
+    "User-Agent": "Mozilla/5.0"
+}
+
+def scrapear_producto(url):
+    try:
+        r = requests.get(url, headers=headers, timeout=20)
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        precio_actual = None
+        precio_lista = None
+        promo = None
+
+        # precio actual
+        precio = soup.select_one('[class*="price"]')
+        if precio:
+            precio_actual = precio.text.strip()
+
+        # precio anterior
+        precio_old = soup.select_one('[class*="list"]')
+        if precio_old:
+            precio_lista = precio_old.text.strip()
+
+        # promo texto
+        promo_tag = soup.find(string=lambda t: "2x1" in t or "2X1" in t if t else False)
+        if promo_tag:
+            promo = promo_tag.strip()
+
+        return precio_actual, precio_lista, promo
+
+    except:
+        return None, None, None
+
 
 df = pd.read_excel("productos.xlsx")
 
-headers = {"User-Agent": "Mozilla/5.0"}
-
-# --- función para calcular descuento ---
-def calc_desc(price, list_price):
-    if list_price and list_price > price:
-        return round((list_price - price) / list_price * 100, 2)
-    return 0
-
-
-# --- FARMACITY ---
-def farmacity_data(desc):
-    q = urllib.parse.quote(desc)
-    url = f"https://www.farmacity.com/api/catalog_system/pub/products/search?ft={q}"
-    r = requests.get(url, headers=headers)
-
-    if r.status_code == 200 and r.text.strip():
-        data = r.json()
-        if data:
-            try:
-                prod = data[0]
-                offer = prod["items"][0]["sellers"][0]["commertialOffer"]
-
-                price = offer["Price"]
-                list_price = offer.get("ListPrice", price)
-                desc_pct = calc_desc(price, list_price)
-
-                link = f"https://www.farmacity.com/{prod['linkText']}/p"
-                return price, list_price, desc_pct, link
-            except:
-                pass
-    return None, None, None, None
-
-
-# --- FARMAPLUS ---
-def farmaplus_data(desc):
-    q = urllib.parse.quote(desc)
-    url = f"https://www.farmaplus.com.ar/api/catalog_system/pub/products/search?ft={q}"
-    r = requests.get(url, headers=headers)
-
-    if r.status_code == 200 and r.text.strip():
-        data = r.json()
-        if data:
-            try:
-                prod = data[0]
-                offer = prod["items"][0]["sellers"][0]["commertialOffer"]
-
-                price = offer["Price"]
-                list_price = offer.get("ListPrice", price)
-                desc_pct = calc_desc(price, list_price)
-
-                link = f"https://www.farmaplus.com.ar/{prod['linkText']}/p"
-                return price, list_price, desc_pct, link
-            except:
-                pass
-    return None, None, None, None
-
-
-# --- listas resultado ---
-fc_price, fc_list, fc_desc, fc_link = [], [], [], []
-fp_price, fp_list, fp_desc, fp_link = [], [], [], []
+resultados = []
 
 for _, row in df.iterrows():
-    desc = str(row["descripcion"])
 
-    p1, lp1, d1, l1 = farmacity_data(desc)
-    p2, lp2, d2, l2 = farmaplus_data(desc)
+    producto = row["producto"]
 
-    fc_price.append(p1)
-    fc_list.append(lp1)
-    fc_desc.append(d1)
-    fc_link.append(l1)
+    precio_fc, lista_fc, promo_fc = scrapear_producto(row["farmacity_url"])
+    precio_fp, lista_fp, promo_fp = scrapear_producto(row["farmaplus_url"])
 
-    fp_price.append(p2)
-    fp_list.append(lp2)
-    fp_desc.append(d2)
-    fp_link.append(l2)
+    resultados.append({
+        "fecha": datetime.today().date(),
+        "producto": producto,
+        "precio_farmacity": precio_fc,
+        "precio_lista_farmacity": lista_fc,
+        "promo_farmacity": promo_fc,
+        "precio_farmaplus": precio_fp,
+        "precio_lista_farmaplus": lista_fp,
+        "promo_farmaplus": promo_fp
+    })
 
 
-df["precio_farmacity"] = fc_price
-df["precio_lista_farmacity"] = fc_list
-df["descuento_farmacity_%"] = fc_desc
-df["link_farmacity"] = fc_link
+df_final = pd.DataFrame(resultados)
 
-df["precio_farmaplus"] = fp_price
-df["precio_lista_farmaplus"] = fp_list
-df["descuento_farmaplus_%"] = fp_desc
-df["link_farmaplus"] = fp_link
+archivo = "comparador_precios.xlsx"
 
-df.to_excel("comparador_precios.xlsx", index=False)
+try:
+    historial = pd.read_excel(archivo)
+    df_final = pd.concat([historial, df_final])
+except:
+    pass
 
-print("comparador con descuentos listo 😎")
+df_final.to_excel(archivo, index=False)
+
+print("scraping terminado")
