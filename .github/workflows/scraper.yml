@@ -1,33 +1,34 @@
-name: Scraper diario
+name: scraper precios
 
 on:
   schedule:
-    - cron: '0 10 * * *'   # 7 AM Argentina
+    - cron: '0 10 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  run-script:
+  run-scraper:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Descargar repo
-        uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - name: Instalar Python
-        uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: 3.11
 
-      - name: Instalar dependencias
-        run: pip install pandas requests openpyxl
+      - name: Instalar librerías
+        run: |
+          pip install pandas
+          pip install requests
+          pip install beautifulsoup4
+          pip install openpyxl
 
       - name: Ejecutar scraper
         run: python scraper.py
 
-      - name: Subir resultados
+      - name: Commit resultados
         run: |
           git config --global user.name "bot-precios"
           git config --global user.email "bot@github.com"
